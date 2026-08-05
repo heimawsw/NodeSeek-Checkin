@@ -4,6 +4,11 @@ import requests
 import re
 import sys
 import json
+import hmac
+import hashlib
+import base64
+import urllib.parse
+import time
 from datetime import datetime
 
 def parse_expiry_date(expiry_str):
@@ -36,6 +41,52 @@ def send_telegram_message(text):
             print(f"Telegram 通知失败: {resp.text}")
     except Exception as e:
         print(f"发送 Telegram 异常: {e}")
+
+# ========== 新增：钉钉通知相关函数 ==========
+def calc_dingtalk_sign(secret):
+    """计算钉钉机器人加签签名，返回 (timestamp, sign)"""
+    timestamp = str(round(time.time() * 1000))
+    secret_enc = secret.encode('utf-8')
+    string_to_sign = f"{timestamp}\n{secret}"
+    string_to_sign_enc = string_to_sign.encode('utf-8')
+    hmac_code = hmac.new(secret_enc, string_to_sign_enc, hashlib.sha256).digest()
+    sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+    return timestamp, sign
+
+def send_dingtalk_message(text):
+    """发送钉钉机器人通知（Markdown格式）"""
+    # 兼容两个环境变量名，优先取 DD_BOT_TOKEN
+    access_token = os.getenv('DD_BOT_TOKEN') or os.getenv('DD_BOT_ACCESS_TOKEN')
+    secret = os.getenv('DD_BOT_SECRET')
+    
+    if not access_token or not secret:
+        print("未配置钉钉通知，跳过。")
+        return
+    
+    timestamp, sign = calc_dingtalk_sign(secret)
+    url = f"https://oapi.dingtalk.com/robot/send?access_token={access_token}&timestamp={timestamp}&sign={sign}"
+    
+    # 将 HTML 加粗标签转换为 Markdown，适配钉钉消息格式
+    markdown_content = text.replace('<b>', '**').replace('</b>', '**')
+    
+    payload = {
+        "msgtype": "markdown",
+        "markdown": {
+            "title": "NodeSeek 签到汇总",
+            "text": markdown_content
+        }
+    }
+    
+    try:
+        resp = requests.post(url, json=payload, timeout=10)
+        result = resp.json()
+        if result.get('errcode') == 0:
+            print("钉钉通知发送成功。")
+        else:
+            print(f"钉钉通知失败: {result.get('errmsg', resp.text)}")
+    except Exception as e:
+        print(f"发送钉钉异常: {e}")
+# ==========================================
 
 def checkin(cookie, random_mode=False):
     """签到函数，使用正确的 API 方式：POST /api/attendance?random=true/false，body为空"""
@@ -142,6 +193,7 @@ def main():
 
     final_msg = "<b>📅 NodeSeek 签到汇总</b>\n" + "\n".join(results)
     send_telegram_message(final_msg)
+    send_dingtalk_message(final_msg)  # 新增：调用钉钉通知
 
 if __name__ == "__main__":
     main()
