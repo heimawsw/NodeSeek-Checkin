@@ -11,6 +11,11 @@ import urllib.parse
 import time
 from datetime import datetime
 
+# ========== 钉钉配置（直接填写） ==========
+DD_BOT_TOKEN = "3bad21b529967b114235c5e5c7a5d987719a905ae9d95b480c555a235bbba612"
+DD_BOT_SECRET = "SEC4a050251f92e72d5864c44b2e76edbc518380260bc67f4651064d8d3d9ea8e3e"
+# ========================================
+
 def parse_expiry_date(expiry_str):
     """解析过期日期（格式：YYYY-MM-DD），返回剩余天数"""
     if not expiry_str:
@@ -42,7 +47,6 @@ def send_telegram_message(text):
     except Exception as e:
         print(f"发送 Telegram 异常: {e}")
 
-# ========== 新增：钉钉通知相关函数 ==========
 def calc_dingtalk_sign(secret):
     """计算钉钉机器人加签签名，返回 (timestamp, sign)"""
     timestamp = str(round(time.time() * 1000))
@@ -55,18 +59,14 @@ def calc_dingtalk_sign(secret):
 
 def send_dingtalk_message(text):
     """发送钉钉机器人通知（Markdown格式）"""
-    # 兼容两个环境变量名，优先取 DD_BOT_TOKEN
-    access_token = os.getenv('DD_BOT_TOKEN') or os.getenv('DD_BOT_ACCESS_TOKEN')
-    secret = os.getenv('DD_BOT_SECRET')
-    
-    if not access_token or not secret:
+    if not DD_BOT_TOKEN or not DD_BOT_SECRET:
         print("未配置钉钉通知，跳过。")
         return
     
-    timestamp, sign = calc_dingtalk_sign(secret)
-    url = f"https://oapi.dingtalk.com/robot/send?access_token={access_token}&timestamp={timestamp}&sign={sign}"
+    timestamp, sign = calc_dingtalk_sign(DD_BOT_SECRET)
+    url = f"https://oapi.dingtalk.com/robot/send?access_token={DD_BOT_TOKEN}&timestamp={timestamp}&sign={sign}"
     
-    # 将 HTML 加粗标签转换为 Markdown，适配钉钉消息格式
+    # 将 HTML 加粗标签转换为 Markdown
     markdown_content = text.replace('<b>', '**').replace('</b>', '**')
     
     payload = {
@@ -86,10 +86,9 @@ def send_dingtalk_message(text):
             print(f"钉钉通知失败: {result.get('errmsg', resp.text)}")
     except Exception as e:
         print(f"发送钉钉异常: {e}")
-# ==========================================
 
 def checkin(cookie, random_mode=False):
-    """签到函数，使用正确的 API 方式：POST /api/attendance?random=true/false，body为空"""
+    """签到函数"""
     random_param = 'true' if random_mode else 'false'
     url = f"https://www.nodeseek.com/api/attendance?random={random_param}"
     
@@ -155,7 +154,6 @@ def main():
     print(f"检测到 {len(lines)} 个账号，开始签到...")
     results = []
 
-    # 解析每行，支持格式：用户名|Cookie|到期日期（可选）
     accounts = []
     for line in lines:
         parts = line.split('|')
@@ -176,7 +174,6 @@ def main():
     for idx, (username, cookie, expiry_date) in enumerate(accounts, 1):
         display_name = username if username else f"账号 {idx}"
 
-        # 计算该账号的剩余天数
         days_left = parse_expiry_date(expiry_date)
         days_str = f"{days_left} 天" if days_left is not None else "未知"
 
@@ -193,7 +190,7 @@ def main():
 
     final_msg = "<b>📅 NodeSeek 签到汇总</b>\n" + "\n".join(results)
     send_telegram_message(final_msg)
-    send_dingtalk_message(final_msg)  # 新增：调用钉钉通知
+    send_dingtalk_message(final_msg)
 
 if __name__ == "__main__":
     main()
