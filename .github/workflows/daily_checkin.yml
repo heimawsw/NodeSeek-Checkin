@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 打印实际运行时间
-        run: echo "UTC时间: $(date -u) | 北京时间: $(TZ=Asia/Shanghai date)"
+        run: |
+          echo "UTC时间: $(date -u) | 北京时间: $(TZ=Asia/Shanghai date)"
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Set up Python
