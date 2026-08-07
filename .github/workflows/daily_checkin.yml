@@ -2,7 +2,7 @@ name: Daily NodeSeek Check-In
 
 on:
   schedule:
-    - cron: '23 1,2 * * *'
+    - cron: '23 1 * * *'
   workflow_dispatch:
 
 jobs:
